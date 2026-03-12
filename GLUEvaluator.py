@@ -11,13 +11,14 @@ from seaborn import heatmap
 from functools import reduce
 from torch.optim import Adam
 from datasets import load_dataset
-from transformers.optimization import AdamW
+from torch.optim import AdamW
 from scipy.stats import spearmanr, pearsonr
 from sklearn.metrics import f1_score, matthews_corrcoef, accuracy_score
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from datasets.arrow_dataset import Dataset
 from utils import setup_logging
+import json  # ADDED
 
 setup_logging()
 LOGGER = logging.getLogger(__file__)
@@ -384,7 +385,7 @@ class GLUEvaluator:
         if optimizer == 'adam':
             self.optimizer = Adam(self.model.parameters(), lr=learning_rate)
         elif optimizer == 'adamw':
-            self.optimizer = AdamW(self.model.parameters(), lr=learning_rate, correct_bias=True)
+            self.optimizer = AdamW(self.model.parameters(), lr=learning_rate)
         else:
             raise Exception(f"optimizer arg must be in ['adam', 'adamw'], got: {optimizer}")
 
@@ -440,6 +441,14 @@ class GLUEvaluator:
 
             # Plotting
             self.plot_evaluations(output_path)
+
+        if output_path:  # ADDED: save the best validation set results
+            best = {}
+            for k, metrics in self.evaluations.items():
+                if "test" not in k:
+                    best[k] = {m: max(v) for m, v in metrics.items() if v}
+            with open(os.path.join(output_path, "eval_results.json"), "w") as f:
+                json.dump(best, f)
 
     def plot_evaluations(self, output_path=None):
         """Plot the learning curves for each metric.
@@ -535,7 +544,7 @@ class GLUEvaluator:
 
         # align the y-axis text to the left
         yax = ax.get_yaxis()
-        pad = max(T.label.get_window_extent().width for T in yax.majorTicks)
+        pad = max(T.label1.get_window_extent().width for T in yax.majorTicks)
         yax.set_tick_params(pad=pad)
 
         if output_path:

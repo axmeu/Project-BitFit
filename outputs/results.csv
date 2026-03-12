@@ -1,0 +1,3 @@
+model,task,fine_tune_type,metric,mean,std
+bert-base-cased,rte,bitfit,Accuracy,70.54151624548737,1.0362960356972815
+bert-base-cased,rte,full_ft,Accuracy,71.48014440433214,2.7303495164171903
