@@ -29,10 +29,11 @@ def _parse_args():
                         choices={'full_ft', 'bitfit', 'frozen', 'rand_uniform', 'rand_row_col'})
     parser.add_argument('--bias-terms', metavar='N', type=str, nargs='+', default=['all'],
                         choices={'intermediate', 'key', 'query', 'value', 'output', 'output_layernorm',
-                                 'attention_layernorm', 'all'},
+                                 'attention_layernorm', 'all','none'},
                         help='bias terms to BitFit, should be given in case --fine-tune-type is bitfit '
-                             '(choose \'all\' for BitFit all bias terms)')
-
+                             '(choose \'all\' for BitFit all bias terms,or \'none\' for no bias terms)')
+    parser.add_argument('--lora-r', type=int, default=0,
+                        help='Rank (r) for LoRA layers. Set to 0 to disable LoRA. Set to >0 to inject LoRA.')
     parser.add_argument('--gpu-device', '-d', type=int, default=None,
                         help='GPU id for BitFit, if not mentioned will train on CPU.')
     parser.add_argument('--seed', '-s', type=int, default=0, help='seed value to set.')
@@ -81,6 +82,10 @@ def _plot_training_details(args):
 
     if args.fine_tune_type == 'bitfit':
         LOGGER.info(f"Bias Trainable Terms: {'all bias terms' if 'all' in args.bias_terms else args.bias_terms}")
+    if args.lora-r>0:
+        LOGGER.info(f"LoRA Status: Active (Rank = {args.lora_r})")
+    else:
+        LOGGER.info(f"LoRA Status: Inactive")
 
     LOGGER.info(f'Epochs: {args.epochs}')
     LOGGER.info(f'Learning Rate: {args.learning_rate}')
@@ -100,17 +105,20 @@ def _perform_training_preparations(evaluator, args, trainable_components):
         evaluator.training_preparation(learning_rate=args.learning_rate,
                                        optimizer=args.optimizer,
                                        encoder_trainable=True,
+                                       lora_r=args.lora_r,
                                        verbose=args.verbose)
     elif args.fine_tune_type == 'bitfit' or args.fine_tune_type == 'frozen':
         evaluator.training_preparation(learning_rate=args.learning_rate,
                                        optimizer=args.optimizer,
                                        encoder_trainable=False,
                                        trainable_components=trainable_components,
+                                       lora_r=args.lora_r,
                                        verbose=args.verbose)
     else:
         evaluator.training_preparation(learning_rate=args.learning_rate,
                                        optimizer=args.optimizer,
                                        encoder_trainable=True,
+                                       lora_r=args.lora_r,
                                        verbose=False)
 
         # randomizing mask
@@ -136,14 +144,18 @@ def main():
     evaluator.preprocess_dataset(PADDING, MAX_SEQUENCE_LEN, args.batch_size)
 
     # training preparation
-    trainable_components = GLUEvaluator.convert_to_actual_components(args.bias_terms)
+    if 'none' in args.bias_terms:
+        trainable_components = []
+    else:
+        trainable_components = GLUEvaluator.convert_to_actual_components(args.bias_terms)
+    
     _perform_training_preparations(evaluator, args, trainable_components)
 
     # train and evaluate
     evaluator.train_and_evaluate(args.epochs, args.output_path)
 
     # saving artifacts
-    if args.fine_tune_type == 'bitfit':
+    if args.fine_tune_type == 'bitfit' and args.lora_r == 0:
         evaluator.plot_terms_changes(os.path.join(args.output_path, 'bias_term_changes'))
 
     # save model

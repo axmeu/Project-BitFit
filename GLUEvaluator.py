@@ -19,6 +19,7 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler, Sequentia
 from datasets.arrow_dataset import Dataset
 from utils import setup_logging
 import json  # ADDED
+from peft import LoraConfig, get_peft_model, TaskType
 
 setup_logging()
 LOGGER = logging.getLogger(__file__)
@@ -338,20 +339,26 @@ class GLUEvaluator:
 
         return results
 
-    def _deactivate_relevant_gradients(self, trainable_components):
+    def _deactivate_relevant_gradients_with_lora(self, trainable_components):
         # turns off the model parameters requires_grad except the trainable bias terms.
         for param in self.model.parameters():
             param.requires_grad = False
+
         if trainable_components:
-            trainable_components = trainable_components + ['pooler.dense.bias']
-        trainable_components = trainable_components + ['classifier']
+            full_trainable = trainable_components + ['pooler.dense.bias', 'classifier']
+        else:
+            full_trainable = [] 
+
         for name, param in self.model.named_parameters():
-            for component in trainable_components:
+            for component in full_trainable:
                 if component in name:
                     param.requires_grad = True
-                    break
+                    break  
+            
+            if "lora_" in name:
+                param.requires_grad = True
 
-    def training_preparation(self, learning_rate, optimizer, encoder_trainable, trainable_components=None,
+    def training_preparation(self, learning_rate, optimizer, encoder_trainable, trainable_components=None,  lora_r=0,
                              verbose=True):
         """Performs training preparation.
 
@@ -364,10 +371,23 @@ class GLUEvaluator:
             encoder_trainable (bool): if True will perform a Full-FT else will perform BitFit training preparation.
             trainable_components(Union[List[str], None]): list of trainable component. (subset of `BIAS_TERMS_DICT` keys)
             verbose: if True will plot a list of all trainable params
-
+            (add) lora_r(int):if >0, add LoRA layer.
         """
         if self.model:
             raise Exception('Training preparation was already completed.')
+        
+        config = AutoConfig.from_pretrained(self.model_name, num_labels=self.num_labels, return_dict=True)
+        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name, config=config)
+        if lora_r > 0:
+            peft_config = LoraConfig(
+                task_type=TaskType.SEQ_CLS, 
+                inference_mode=False, 
+                r=lora_r, 
+                lora_alpha=32, 
+                lora_dropout=0.1,
+                target_modules=["query", "value"]
+            )
+            self.model = get_peft_model(self.model, peft_config)
 
         if encoder_trainable and trainable_components:
             raise Exception(
@@ -375,11 +395,9 @@ class GLUEvaluator:
                 f"Got trainable_components: {trainable_components}")
 
         self.encoder_trainable = encoder_trainable
-        # model declaration
-        config = AutoConfig.from_pretrained(self.model_name, num_labels=self.num_labels, return_dict=True)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name, config=config)
+        
         if not encoder_trainable:
-            self._deactivate_relevant_gradients(trainable_components)
+            self._deactivate_relevant_gradients_with_lora(trainable_components)
 
         # optimizer declaration
         if optimizer == 'adam':
@@ -502,10 +520,12 @@ class GLUEvaluator:
 
         changes = []
         for ft_name, ft_param in fine_tuned_model.named_parameters():
-            if ft_param.requires_grad and 'layer' in ft_name:
+            if ft_param.requires_grad and 'layer' in ft_name and 'lora_' not in ft_name:
+                clean_ft_name = ft_name.replace('base_model.model.', '')
                 for base_name, base_param in base_model.named_parameters():
-                    if ft_name == base_name:
-                        changes.append({'name': ft_name, 'value': _calc_mean_diff(ft_param, base_param)})
+                    if clean_ft_name == base_name:
+                        changes.append({'name': clean_ft_name, 'value': _calc_mean_diff(ft_param, base_param)})
+                        break
 
         def _get_component_name(name):
             return re.split(r'.[0-9]+.', name)[1]
