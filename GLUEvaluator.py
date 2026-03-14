@@ -461,6 +461,7 @@ class GLUEvaluator:
             self.plot_evaluations(output_path)
 
         if output_path:  # ADDED: save the best validation set results
+            self.save(os.path.join(output_path, 'evaluator'))
             best = {}
             for k, metrics in self.evaluations.items():
                 if "test" not in k:
@@ -523,7 +524,7 @@ class GLUEvaluator:
             if ft_param.requires_grad and 'layer' in ft_name and 'lora_' not in ft_name:
                 clean_ft_name = ft_name.replace('base_model.model.', '')
                 for base_name, base_param in base_model.named_parameters():
-                    if clean_ft_name == base_name:
+                    if clean_ft_name.replace('.bias', '').replace('.base_layer', '') == base_name.replace('.bias', ''):
                         changes.append({'name': clean_ft_name, 'value': _calc_mean_diff(ft_param, base_param)})
                         break
 
@@ -586,12 +587,22 @@ class GLUEvaluator:
         LOGGER.info(f'Saving the model to: {output_path}')
 
         self.model.cpu()
-        data = {'model': self.model, 'model_name': self.model_name, 'task_name': self.task_name,
+        model_save_dir = os.path.join(output_path, 'model_weights')
+        os.makedirs(model_save_dir, exist_ok=True)
+        if hasattr(self.model, "save_pretrained"):
+            self.model.save_pretrained(model_save_dir)
+        else:
+            torch.save(self.model.state_dict(), os.path.join(model_save_dir, 'pytorch_model.bin')) 
+        
+        data = {'model_name': self.model_name, 'task_name': self.task_name,
                 'learning_rate': self.learning_rate, 'evaluations': self.evaluations,
                 'batch_size': self.batch_size, 'num_labels': self.num_labels,
                 'encoder_trainable': self.encoder_trainable}
-        with open(output_path, 'wb') as file:
+        
+        with open(os.path.join(output_path, 'evaluator_meta.pkl'), 'wb') as file:
             pickle.dump(data, file)
+        if self.device is not None:
+            self.model.cuda(self.device)
 
     @staticmethod
     def load(path, gpu_device):
@@ -607,7 +618,6 @@ class GLUEvaluator:
         evaluator = GLUEvaluator(data['task_name'], data['model_name'], gpu_device)
         evaluator.num_labels = data['num_labels']
         evaluator.batch_size = data['batch_size']
-        evaluator.model = data['model']
         evaluator.learning_rate = data['learning_rate']
         evaluator.evaluations = data['evaluations']
         evaluator.encoder_trainable = data.get('encoder_trainable', None)

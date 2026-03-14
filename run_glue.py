@@ -82,7 +82,7 @@ def _plot_training_details(args):
 
     if args.fine_tune_type == 'bitfit':
         LOGGER.info(f"Bias Trainable Terms: {'all bias terms' if 'all' in args.bias_terms else args.bias_terms}")
-    if args.lora-r>0:
+    if args.lora_r>0:
         LOGGER.info(f"LoRA Status: Active (Rank = {args.lora_r})")
     else:
         LOGGER.info(f"LoRA Status: Inactive")
