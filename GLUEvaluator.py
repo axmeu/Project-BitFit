@@ -69,7 +69,7 @@ BIAS_TERMS_DICT = {
     'output': 'output.dense.bias',
     'output_layernorm': 'output.LayerNorm.bias',
     'attention_layernorm': 'attention.output.LayerNorm.bias',
-    'all': 'bias',
+    'all': 'bias'
 }
 
 TASK_NAME_TO_SUBMISSION_FILE_NAME = {
@@ -97,14 +97,23 @@ TASK_IS_BINARY = {
 }
 
 BIAS_LAYER_NAME_TO_LATEX = {
-    'attention.self.query.bias': '$\mathbf{b}_{q}^{\ell}$',
-    'attention.self.key.bias': '$\mathbf{b}_{k}^{\ell}$',
-    'attention.self.value.bias': '$\mathbf{b}_{v}^{\ell}$',
-    'attention.output.dense.bias': '$\mathbf{b}_{m_1}^{\ell}$',
-    'attention.output.LayerNorm.bias': '$\mathbf{b}_{LN_1}^{\ell}$',
-    'intermediate.dense.bias': '$\mathbf{b}_{m_2}^{\ell}$',
-    'output.dense.bias': '$\mathbf{b}_{m_3}^{\ell}$',
-    'output.LayerNorm.bias': '$\mathbf{b}_{LN_2}^{\ell}$',
+    'attention.self.query.bias': r'$\mathbf{b}_{q}^{\ell}$',
+    'attention.self.key.bias': r'$\mathbf{b}_{k}^{\ell}$',
+    'attention.self.value.bias': r'$\mathbf{b}_{v}^{\ell}$',
+    'attention.output.dense.bias': r'$\mathbf{b}_{m_1}^{\ell}$',
+    'attention.output.LayerNorm.bias': r'$\mathbf{b}_{LN_1}^{\ell}$',
+    'intermediate.dense.bias': r'$\mathbf{b}_{m_2}^{\ell}$',
+    'output.dense.bias': r'$\mathbf{b}_{m_3}^{\ell}$',
+    'output.LayerNorm.bias': r'$\mathbf{b}_{LN_2}^{\ell}$',
+    #  ADDED for Distilbert
+    'attention.q_lin.bias': r'$\mathbf{b}_{q}^{\ell}$',
+    'attention.k_lin.bias': r'$\mathbf{b}_{k}^{\ell}$',
+    'attention.v_lin.bias': r'$\mathbf{b}_{v}^{\ell}$',
+    'attention.out_lin.bias': r'$\mathbf{b}_{out}^{\ell}$',
+    'sa_layer_norm.bias': r'$\mathbf{b}_{LN_1}^{\ell}$',
+    'ffn.lin1.bias': r'$\mathbf{b}_{ffn1}^{\ell}$',
+    'ffn.lin2.bias': r'$\mathbf{b}_{ffn2}^{\ell}$',
+    'output_layer_norm.bias': r'$\mathbf{b}_{LN_2}^{\ell}$'
 }
 
 
@@ -155,7 +164,8 @@ class GLUEvaluator:
         else:
             keys = ['input_ids', 'attention_mask', 'token_type_ids', 'label']
 
-        if 'roberta' in model_name:
+        if 'roberta' in model_name or "distilbert" in model_name:
+            # ADDED (due to models not having it compared to bert base)
             keys.remove('token_type_ids')
 
         data = {key: list() for key in keys}
@@ -247,7 +257,7 @@ class GLUEvaluator:
             if self.device is not None:
                 batch = tuple(obj.cuda(self.device) for obj in batch)
 
-            if 'roberta' in self.model_name:
+            if 'roberta' in self.model_name or "distilbert" in self.model_name:  # ADDED
                 input_ids, attention_mask, labels = batch
                 token_type_ids = None
             else:
@@ -271,6 +281,12 @@ class GLUEvaluator:
                 if 'roberta' in self.model_name:
                     for name, param in self.model.roberta.named_parameters():
                         param.grad[~self.masks[name]] = 0
+
+                elif "distilbert" in self.model_name:
+                    # ADDED keeps the desactivated parameters to 0 (pruning, not related to bitfit)
+                    for name, param in self.model.distilbert.named_parameters():
+                        param.grad[~self.masks[name]] = 0
+
                 else:
                     for name, param in self.model.bert.named_parameters():
                         param.grad[~self.masks[name]] = 0
@@ -299,7 +315,8 @@ class GLUEvaluator:
             # move batch to gpu
             if self.device is not None:
                 batch = tuple(obj.cuda(self.device) for obj in batch)
-            if 'roberta' in self.model_name:
+            if 'roberta' in self.model_name or "distilbert" in self.model_name:
+                # ADDED
                 input_ids, attention_mask, labels = batch
                 token_type_ids = None
             else:
@@ -344,7 +361,8 @@ class GLUEvaluator:
             param.requires_grad = False
         if trainable_components:
             trainable_components = trainable_components + ['pooler.dense.bias']
-        trainable_components = trainable_components + ['classifier']
+        trainable_components = trainable_components + ['classifier', "pre_classifier"] 
+        # ADDED pre_classifier for the classification head of distilbert
         for name, param in self.model.named_parameters():
             for component in trainable_components:
                 if component in name:
@@ -491,6 +509,11 @@ class GLUEvaluator:
         if 'roberta' in self.model_name:
             base_model = AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True).roberta
             fine_tuned_model = self.model.cpu().roberta
+
+        elif "distilbert" in self.model_name:  # ADDED
+            base_model = AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True).distilbert
+            fine_tuned_model = self.model.cpu().distilbert
+                                            
         else:
             base_model = AutoModelForSequenceClassification.from_pretrained(self.model_name, return_dict=True).bert
             fine_tuned_model = self.model.cpu().bert
@@ -508,7 +531,7 @@ class GLUEvaluator:
                         changes.append({'name': ft_name, 'value': _calc_mean_diff(ft_param, base_param)})
 
         def _get_component_name(name):
-            return re.split(r'.[0-9]+.', name)[1]
+            return re.split(r'\.[0-9]+\.', name)[1]
 
         def _get_component_layer(name):
             return int(name.split('.')[2])
@@ -609,6 +632,10 @@ class GLUEvaluator:
 
         if 'roberta' in self.model_name:
             model = self.model.roberta
+
+        elif "distilbert" in self.model_name:  # ADDED
+            model = self.model.distilbert
+
         else:
             model = self.model.bert
 
@@ -649,6 +676,10 @@ class GLUEvaluator:
 
         if 'roberta' in self.model_name:
             model = self.model.roberta
+
+        elif "distilbert" in self.model_name:  # ADDED
+            model = self.model.distilbert
+        
         else:
             model = self.model.bert
 

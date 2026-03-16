@@ -10,7 +10,9 @@ LOGGER = logging.getLogger(__file__)
 PADDING = "max_length"
 MAX_SEQUENCE_LEN = 128
 
-RAND_UNIFORM_MASK_SIZE = {'bert-base-cased': 100000, 'bert-large-cased': 280000, 'roberta-base': 105000}
+RAND_UNIFORM_MASK_SIZE = {'bert-base-cased': 100000, 'bert-large-cased': 280000,
+                          'roberta-base': 105000, "distilbert-base-cased": 60_000
+                          }
 
 
 def _parse_args():
@@ -22,7 +24,7 @@ def _parse_args():
     parser.add_argument('--task-name', '-t', required=True, type=str, help='GLUE task name for evaluation.',
                         choices={'cola', 'mnli', 'mrpc', 'qnli', 'qqp', 'rte', 'sst2', 'stsb', 'wnli'})
     parser.add_argument('--model-name', '-m', type=str, default='bert-base-cased', help='model-name to evaluate with.',
-                        choices={'bert-base-cased', 'bert-large-cased', 'roberta-base'})
+                        choices={'bert-base-cased', 'bert-large-cased', 'roberta-base', "distilbert-base-cased"}) # ADDED
 
     parser.add_argument('--fine-tune-type', '-f', required=True, type=str,
                         help='Which fine tuning process to perform, types are the types that were performed in BitFit paper.',
@@ -56,8 +58,8 @@ def _validate_args(args):
         os.makedirs(args.output_path)
     if not os.path.isdir(args.output_path):
         raise ValueError("--output_path must be a path to directory")
-    if len(os.listdir(args.output_path)):
-        raise ValueError("--output_path directory isn't empty, please supply an empty directory path.")
+    """if len(os.listdir(args.output_path)):
+        raise ValueError("--output_path directory isn't empty, please supply an empty directory path.")"""
     if args.fine_tune_type == 'rand_uniform' and args.model_name not in RAND_UNIFORM_MASK_SIZE.keys():
         raise ValueError(f'Currently the rand_uniform fine-tune type is not supported for {args.model_name}.')
 
