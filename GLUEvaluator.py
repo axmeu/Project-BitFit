@@ -39,6 +39,7 @@ TASK_TO_KEYS = {
     "sst2": ("sentence", None),
     "stsb": ("sentence1", "sentence2"),
     "wnli": ("sentence1", "sentence2"),
+    "ade": ("text", None),
 }
 
 TASK_TO_METRICS = {
@@ -51,6 +52,7 @@ TASK_TO_METRICS = {
     "sst2": ["Accuracy"],
     "stsb": ["Spearman", "Pearson"],
     "wnli": ["Accuracy"],
+    "ade": ["Accuracy", "F1"],
 }
 
 METRIC_NAME_TO_FUNCTION = {
@@ -82,6 +84,7 @@ TASK_NAME_TO_SUBMISSION_FILE_NAME = {
     "sst2": "SST-2.tsv",
     "stsb": "STS-B.tsv",
     "wnli": "WNLI.tsv",
+    "ade": "ADE.tsv",
 }
 
 TASK_IS_BINARY = {
@@ -94,6 +97,7 @@ TASK_IS_BINARY = {
     "sst2": True,
     "stsb": True,
     "wnli": True,
+    "ade": True,
 }
 
 BIAS_LAYER_NAME_TO_LATEX = {
@@ -195,7 +199,20 @@ class GLUEvaluator:
 
         """
         LOGGER.info(f'Downloading dataset: {self.task_name}')
-        datasets = load_dataset('glue', self.task_name)
+
+        if self.task_name == 'ade':
+            raw_datasets = load_dataset("ade_corpus_v2", "Ade_corpus_v2_classification")
+            split_datasets = raw_datasets["train"].train_test_split(test_size=0.2, seed=42)
+            
+            from datasets import DatasetDict
+            datasets = DatasetDict({
+                "train": split_datasets["train"],
+                "validation": split_datasets["test"],
+                "test": split_datasets["test"]
+            })
+        
+        else:
+            datasets = load_dataset('glue', self.task_name)
 
         self.batch_size = batch_size
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)

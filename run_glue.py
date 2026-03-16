@@ -22,7 +22,7 @@ def _parse_args():
     parser.add_argument('--output-path', '-o', required=True, type=str,
                         help='output directory path for evaluation products.')
     parser.add_argument('--task-name', '-t', required=True, type=str, help='GLUE task name for evaluation.',
-                        choices={'cola', 'mnli', 'mrpc', 'qnli', 'qqp', 'rte', 'sst2', 'stsb', 'wnli'})
+                        choices={'cola', 'mnli', 'mrpc', 'qnli', 'qqp', 'rte', 'sst2', 'stsb', 'wnli','ade'}) #added
     parser.add_argument('--model-name', '-m', type=str, default='bert-base-cased', help='model-name to evaluate with.',
                         choices={'bert-base-cased', 'bert-large-cased', 'roberta-base', "distilbert-base-cased"}) # ADDED
 
