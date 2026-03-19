@@ -39,7 +39,8 @@ TASK_TO_KEYS = {
     "sst2": ("sentence", None),
     "stsb": ("sentence1", "sentence2"),
     "wnli": ("sentence1", "sentence2"),
-    "ade": ("text", None),
+    "ade": ("text", None), # ADDED
+    "lexglue":("text", None), # ADDED
 }
 
 TASK_TO_METRICS = {
@@ -53,6 +54,7 @@ TASK_TO_METRICS = {
     "stsb": ["Spearman", "Pearson"],
     "wnli": ["Accuracy"],
     "ade": ["Accuracy", "F1"],
+    "lexglue":["Accuracy"]
 }
 
 METRIC_NAME_TO_FUNCTION = {
@@ -85,6 +87,7 @@ TASK_NAME_TO_SUBMISSION_FILE_NAME = {
     "stsb": "STS-B.tsv",
     "wnli": "WNLI.tsv",
     "ade": "ADE.tsv",
+    "lexglue": "LEXGLUE.tsv"
 }
 
 TASK_IS_BINARY = {
@@ -98,6 +101,7 @@ TASK_IS_BINARY = {
     "stsb": True,
     "wnli": True,
     "ade": True,
+    "lexglue": False
 }
 
 BIAS_LAYER_NAME_TO_LATEX = {
@@ -210,7 +214,10 @@ class GLUEvaluator:
                 "validation": split_datasets["test"],
                 "test": split_datasets["test"]
             })
-        
+            
+        elif self.task_name == 'lexglue':
+             datasets = load_dataset("lex_glue", "ledgar")
+       
         else:
             datasets = load_dataset('glue', self.task_name)
 
