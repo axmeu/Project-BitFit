@@ -4,3 +4,13 @@ bert-base-cased,rte,full_ft,Accuracy,71.48014440433214,2.7303495164171903
 distilbert-base-cased,rte,full_ft,Accuracy,61.227436823104696,1.1324467250078063
 distilbert-base-cased,qnli,full_ft,Accuracy,86.87900421014095,0.41635637955586696
 distilbert-base-cased,qnli,bitfit,Accuracy,85.33040453963024,0.14394730551958698
+distilbert-base-cased,rte,bitfit,Accuracy,56.38989169675091,1.1278338882175674
+distilbert-base-cased,cola,full_ft,MCC,49.38423233899286,1.7671202061364082
+bert-base-cased,cola,full_ft,MCC,58.81122343759028,0.7109866916322588
+bert-base-cased,cola,bitfit,MCC,55.19993616664054,1.1153935732999478
+distilbert-base-cased,cola,bitfit,MCC,46.196590194801566,1.290773165383014
+bert-base-cased,mrpc,bitfit,F1,89.80387320391452,0.4386830226178493
+bert-base-cased,mrpc,full_ft,F1,90.50506074015927,0.6296820584874793
+distilbert-base-cased,mrpc,full_ft,F1,88.69420861312192,0.7663068640209751
+distilbert-base-cased,mrpc,bitfit,F1,87.4973228151079,0.35816031158066647
+
